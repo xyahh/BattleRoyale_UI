@@ -9,6 +9,7 @@
 #include "WeaponEquipmentComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FWeaponRecoilDelegate, float, Pitch, float, Yaw);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FItemOwnershipChanged, ABaseItem*, Item, bool, bItemAdded);
 
 USTRUCT(BlueprintType)
 struct BATTLEROYALE_UI_API FSlotGroup
@@ -77,7 +78,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapons")
 	void SearchItem(const FVector& StartingPoint
 		, const FVector& Direction, float Distance
-		, bool bAddWeapon
+		, bool bAddItem
 		, bool bEquipWeapon);
 
 	UFUNCTION(BlueprintCallable, Category = "Weapons")
@@ -93,7 +94,7 @@ public:
 	void Fire_Internal(); 
 
 	/* Adds the Weapon searched on the next tick (Only does it once). */
-	void AddSearchedWeapon();
+	void AddSearchedItem();
 	
 
 	/* Reloads the Currently Equipped Gun */
@@ -120,16 +121,19 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Weapons")
 	FWeaponRecoilDelegate OnWeaponRecoil;
 
+	UPROPERTY(BlueprintAssignable, Category = "Items")
+	FItemOwnershipChanged OnItemOwnershipChanged;
+
 	FTimerHandle FiringTimerHandle;
 
 
 protected:
 	//Weapons that are being carried Map. FString represents the name of the Weapon
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon Equipment Component")
 	TArray<ABaseWeapon*> Weapons;
 
 	//Attachments that are being carried Map. FString represents the name of the Weapon
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon Equipment Component")
 	TArray<ABaseAttachment*> Attachments;
 
 	//The Component where all the Weapons are going to be handled
@@ -142,6 +146,7 @@ protected:
 	UPROPERTY()
 	APlayerCameraManager* PlayerCameraManager;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon Equipment Component")
 	ABaseWeapon* CurrentWeapon;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
@@ -162,7 +167,7 @@ protected:
 	//A set indicating whether a Slot can be occupied or not
 	TSet<FName> OccupiedSlots;
 
-	bool bAddWeaponOnNextTick;
+	bool bAddItemOnNextTick;
 
 	//Whether trigger is currently pulled (true) or released (false)
 	UPROPERTY(BlueprintReadOnly, Category = "Weapons")

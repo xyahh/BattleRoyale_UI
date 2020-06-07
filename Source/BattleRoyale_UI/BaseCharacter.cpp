@@ -23,6 +23,7 @@ ABaseCharacter::ABaseCharacter()
 	SpringArm->bUsePawnControlRotation = true;
 	SpringArm->SetupAttachment(RootComponent);
 	SpringArm->bEnableCameraLag = true;
+	SpringArm->bDoCollisionTest = false;
 	//SpringArm->bEnableCameraRotationLag = true;
 
 	Camera = CreateDefaultSubobject<UCameraComponent>("Camera");
@@ -89,7 +90,7 @@ void ABaseCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 
 	//Weapon Equipment Input
 	PlayerInputComponent->BindAction("GetWeapon", IE_Pressed, WeaponEquipment
-		, &UWeaponEquipmentComponent::AddSearchedWeapon);
+		, &UWeaponEquipmentComponent::AddSearchedItem);
 
 	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &ABaseCharacter::Shoot);
 	PlayerInputComponent->BindAction("Fire", IE_Released, this, &ABaseCharacter::StopShooting);

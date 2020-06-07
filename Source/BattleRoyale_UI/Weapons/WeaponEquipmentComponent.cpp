@@ -15,7 +15,7 @@ UWeaponEquipmentComponent::UWeaponEquipmentComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 	WeaponSearchRange = 500.f;
-	bAddWeaponOnNextTick = false;
+	bAddItemOnNextTick = false;
 
 	CurrentWeapon = nullptr;
 	StoreComponent = nullptr;
@@ -54,32 +54,47 @@ void UWeaponEquipmentComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	{
 		SearchItem(PlayerCameraManager->GetCameraLocation()
 			, PlayerCameraManager->GetActorForwardVector()
-			, WeaponSearchRange, bAddWeaponOnNextTick, false);
-		bAddWeaponOnNextTick = false;
+			, WeaponSearchRange, bAddItemOnNextTick, false);
+		bAddItemOnNextTick = false;
 	}
 }
 
 void UWeaponEquipmentComponent::AddItem(ABaseItem* Item, bool bEquipWeapon)
 {
+	bool bItemAdded = false;
+
 	//Make sure that: 
 	// 1) Weapon is Valid  
 	// 2) Store Component is Valid
 	// 3) There is at least 1 available Unoccupied Slot
 	if (ABaseWeapon* Weapon = Cast<ABaseWeapon>(Item))
 	{
-		if (StoreComponent && OccupiedSlots.Num() < StoreSlots.Num())
+
+		if (StoreComponent && OccupiedSlots.Num() < StoreSlots.Num() 
+			&& INDEX_NONE == Weapons.Find(Weapon)) //Weapon must not be in list
 		{
-			Weapons.AddUnique(Weapon);
+			Weapons.Add(Weapon);
 			Weapon->ItemOwner = GetOwner();
 			if (StoreWeapon(Weapon) && bEquipWeapon)
 				EquipWeapon(Weapon);
+			bItemAdded = true;
 		}		
 	}
 	else if(ABaseAttachment * Attachment = Cast<ABaseAttachment>(Item))
 	{
-		Attachments.AddUnique(Attachment);
-		Attachment->ItemOwner = GetOwner();
-		StoreAttachment(Attachment);
+		if (INDEX_NONE == Attachments.Find(Attachment))
+		{
+			Attachments.Add(Attachment);
+			bItemAdded = true;
+			Attachment->ItemOwner = GetOwner();
+			StoreAttachment(Attachment);
+			//should we also handle bEquipWeapon here?
+		}
+	}
+
+	if (bItemAdded)
+	{
+		OnItemOwnershipChanged.Broadcast(Item, true);
 	}
 }
 
@@ -110,7 +125,7 @@ void UWeaponEquipmentComponent::SelectNextWeapon(int32 DeltaIndex)
 }
 
 void UWeaponEquipmentComponent::SearchItem(const FVector& StartingPoint, const FVector& Direction
-	, float Distance, bool bAddWeapon, bool bEquipWeapon)
+	, float Distance, bool bAddItem, bool bEquipWeapon)
 {
 	bool bTraceFailed = true;
 	if (UWorld* World = GetWorld())
@@ -138,7 +153,7 @@ void UWeaponEquipmentComponent::SearchItem(const FVector& StartingPoint, const F
 					TracedItem->ItemTraceStateDelegate.Broadcast(GetOwner(), true);
 				}
 
-				if (bAddWeapon)
+				if (bAddItem)
 				{
 					AddItem(Item, bEquipWeapon);
 				}
@@ -191,9 +206,9 @@ void UWeaponEquipmentComponent::Fire_Internal()
 	UE_LOG(LogTemp, Warning, TEXT("Firing!!"));
 }
 
-void UWeaponEquipmentComponent::AddSearchedWeapon()
+void UWeaponEquipmentComponent::AddSearchedItem()
 {
-	bAddWeaponOnNextTick = true;
+	bAddItemOnNextTick = true;
 }
 
 void UWeaponEquipmentComponent::Reload()
@@ -269,6 +284,8 @@ bool UWeaponEquipmentComponent::StoreWeapon(ABaseWeapon* Weapon)
 
 bool UWeaponEquipmentComponent::DropItem(ABaseItem* Item)
 {
+	bool bItemRemoved = false;
+
 	if (ABaseWeapon* Weapon = Cast<ABaseWeapon>(Item))
 	{
 		if (FName* WeaponSlot = EquippedWeaponSlots.Find(Weapon))
@@ -285,11 +302,36 @@ bool UWeaponEquipmentComponent::DropItem(ABaseItem* Item)
 				ReleaseTrigger();
 				CurrentWeapon = nullptr;
 			}
-			return true;
+			bItemRemoved = true;
 		}
 	}
-	
-	return false;
+	else if (ABaseAttachment* Attachment = Cast<ABaseAttachment>(Item))
+	{
+		int32 Index = Attachments.Find(Attachment);
+		if (INDEX_NONE != Index)
+		{
+			if (ABaseWeapon* WeaponOwner = Attachment->GetWeaponOwner())
+				WeaponOwner->UninstallAttachment(Attachment);
+
+			Attachments.RemoveAt(Index);
+
+			Attachment->ItemOwner = nullptr;
+			Attachment->SetWeaponOwner(nullptr);
+			Attachment->SetActorHiddenInGame(false);
+			Attachment->SetWeaponOwner(nullptr);
+			DeattachItem(Attachment);
+			bItemRemoved = true;
+		}
+
+		
+	}
+
+	if (bItemRemoved)
+	{
+		OnItemOwnershipChanged.Broadcast(Item, false);
+	}
+
+	return bItemRemoved;
 }
 
 
@@ -316,8 +358,9 @@ bool UWeaponEquipmentComponent::EquipAttachment(ABaseAttachment* Attachment
 
 bool UWeaponEquipmentComponent::StoreAttachment(ABaseAttachment* Attachment)
 {
-	Attachment->SetHidden(true);
+	Attachment->SetActorHiddenInGame(true);
 	Attachment->SetWeaponOwner(nullptr);
+	Attachment->SetPhysics(false);
 	return true;
 }
 

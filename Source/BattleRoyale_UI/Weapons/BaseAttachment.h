@@ -7,6 +7,8 @@
 #include "AttachmentData.h"
 #include "BaseAttachment.generated.h"
 
+class ABaseWeapon;
+
 UCLASS()
 class BATTLEROYALE_UI_API ABaseAttachment : public ABaseItem
 {
@@ -23,7 +25,8 @@ public:
 
 	virtual void UpdateSettings() override;
 
-	void SetWeaponOwner(class ABaseWeapon* Weapon);
+	void SetWeaponOwner(ABaseWeapon* Weapon);
+	ABaseWeapon* GetWeaponOwner() const { return WeaponOwner; }
 
 protected:
 
