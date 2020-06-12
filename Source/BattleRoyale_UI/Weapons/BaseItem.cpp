@@ -57,11 +57,13 @@ void ABaseItem::PostInitProperties()
 		ItemCollisionBox->SetupAttachment(PhysicsComponent);
 }
 
+#if WITH_EDITOR
 void ABaseItem::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	UpdateSettings();
 }
+#endif
 
 void ABaseItem::SetPhysics(bool bEnabled)
 {

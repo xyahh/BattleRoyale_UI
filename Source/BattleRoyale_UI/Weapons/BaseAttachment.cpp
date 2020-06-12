@@ -23,6 +23,8 @@ ABaseAttachment::ABaseAttachment()
 
 void ABaseAttachment::UpdateSettings()
 {
+	if (!AttachmentMesh) return;
+
 	if (UBattleRoyaleSettings* Settings = GetMutableDefault<UBattleRoyaleSettings>())
 	{
 		AttachmentData = Settings->FindAttachment(ItemName);

@@ -8,6 +8,7 @@
 
 class ABaseAttachment;
 class USkeletalMeshComponent;
+class UCameraComponent;
 
 UCLASS()
 class BATTLEROYALE_UI_API ABaseWeapon : public ABaseItem
@@ -18,8 +19,14 @@ public:
 	// Sets default values for this actor's properties
 	ABaseWeapon();
 
+protected:
+
+	virtual void BeginPlay() override;
+
+public:
+
 	UFUNCTION(BlueprintCallable, Category = "Weapons")
-	bool GetWeaponData(FWeaponCoreData& outWeaponData) const;
+	bool GetWeaponData(FWeaponCoreData& outWeaponData, bool bCombineAttachmentData) const;
 
 	//Installs the given Attachment to the Weapon, if the slot is available
 	UFUNCTION(BlueprintCallable, Category = "Weapons")
@@ -29,7 +36,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapons")
 	bool UninstallAttachment(ABaseAttachment* Attachment);
 
+	//Updates the Camera Settings (for Scope when an Attachment is installed/uninstalled)
+	void UpdateCamera();
+
 	USkeletalMeshComponent* GetMesh() const { return WeaponMesh; }
+	UCameraComponent* GetCamera() const { return Camera; }
 
 protected:
 
@@ -41,6 +52,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon Components")
 	USkeletalMeshComponent* WeaponMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon Components")
+	UCameraComponent* Camera;
 
 	FWeaponCoreData* WeaponData;
 

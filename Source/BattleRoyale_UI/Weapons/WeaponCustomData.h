@@ -6,6 +6,8 @@
 #include "Engine/DataTable.h"
 #include "WeaponCustomData.generated.h"
 
+#define GET_MULT_NON_ZERO(Var) ((Var != 0.f) ? Var : 1.f)
+
 //Data Struct containing Elements that can Change the Weapon via Attachments or other Sort.
 USTRUCT(BlueprintType)
 struct FWeaponCustomizableData : public FTableRowBase
@@ -63,4 +65,32 @@ struct FWeaponCustomizableData : public FTableRowBase
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Firing Settings")
     float ScopeZoom;
+
+public:
+    FWeaponCustomizableData& operator+=(const FWeaponCustomizableData& Other)
+    {
+        MagazineCapacity    += Other.MagazineCapacity;
+        RateOfFire          *= GET_MULT_NON_ZERO(Other.RateOfFire);
+        BulletsPerShotCycle += Other.BulletsPerShotCycle;
+        BurstRounds         += Other.BurstRounds;
+        BulletSpeed         *= GET_MULT_NON_ZERO(Other.BulletSpeed);
+        VerticalRecoil      *= GET_MULT_NON_ZERO(Other.VerticalRecoil);
+        ScopeZoom           *= GET_MULT_NON_ZERO(Other.ScopeZoom);
+        return *this;
+    }
+
+    FWeaponCustomizableData& operator-=(const FWeaponCustomizableData& Other)
+    {
+        MagazineCapacity    -= Other.MagazineCapacity;
+        RateOfFire          /= GET_MULT_NON_ZERO(Other.RateOfFire);
+        BulletsPerShotCycle -= Other.BulletsPerShotCycle;
+        BurstRounds         -= Other.BurstRounds;
+        BulletSpeed         /= GET_MULT_NON_ZERO(Other.BulletSpeed);
+        VerticalRecoil      /= GET_MULT_NON_ZERO(Other.VerticalRecoil);
+        ScopeZoom           /= GET_MULT_NON_ZERO(Other.ScopeZoom);
+        return *this;
+    }
+
 };
+
+

@@ -11,6 +11,8 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FWeaponRecoilDelegate, float, Pitch, float, Yaw);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FItemOwnershipChanged, ABaseItem*, Item, bool, bItemAdded);
 
+class APlayerCameraManager;
+
 USTRUCT(BlueprintType)
 struct BATTLEROYALE_UI_API FSlotGroup
 {
@@ -96,14 +98,17 @@ public:
 	/* Adds the Weapon searched on the next tick (Only does it once). */
 	void AddSearchedItem();
 	
+	/* Aims closely (uses Ironsight or Scope if available) (Stops Wide Aim)*/
+	void FocusAim();
+
+	/* Wide Aim, or the Standard Hip-look-from-afar aim (Stops Focus Aim)*/
+	void WideAim();
 
 	/* Reloads the Currently Equipped Gun */
 	void Reload();
 
 	TSet<FName> GetSlotGroup(ABaseWeapon* Weapon);
 
-	
-	
 
 protected:
 
@@ -117,9 +122,6 @@ protected:
 	void DeattachItem(ABaseItem* Item);
 
 public:
-
-	UPROPERTY(BlueprintAssignable, Category = "Weapons")
-	FWeaponRecoilDelegate OnWeaponRecoil;
 
 	UPROPERTY(BlueprintAssignable, Category = "Items")
 	FItemOwnershipChanged OnItemOwnershipChanged;
@@ -143,11 +145,15 @@ protected:
 	UPROPERTY()
 	ABaseItem* TracedItem;
 
+	/* Camera View Settings */
 	UPROPERTY()
-	APlayerCameraManager* PlayerCameraManager;
+	APlayerController* OwnerPC;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Weapon Equipment Component")
 	ABaseWeapon* CurrentWeapon;
+
+	//This is Gathered everytime before we fire
+	FWeaponCoreData WeaponCoreDataPreFire;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
 	float WeaponSearchRange;
@@ -167,12 +173,17 @@ protected:
 	//A set indicating whether a Slot can be occupied or not
 	TSet<FName> OccupiedSlots;
 
-	bool bAddItemOnNextTick;
+	uint8 bAddItemOnNextTick : 1;
 
 	//Whether trigger is currently pulled (true) or released (false)
 	UPROPERTY(BlueprintReadOnly, Category = "Weapons")
-	bool bIsFiring; 
+	uint8 bIsFiring : 1; 
 
-	
+	//Whether currently in Focused Aim (true) or Wide Aim(false)
+	UPROPERTY(BlueprintReadOnly, Category = "Weapons")
+	uint8 bIsAimFocused : 1;
 
+	//Whether we want to Unequip when Equip is called on an Already Equipped Weapon
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+	uint8 bUnequipOnRedundantEquip : 1; 
 };

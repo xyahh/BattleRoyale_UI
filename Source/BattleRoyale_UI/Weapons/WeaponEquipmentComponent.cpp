@@ -16,10 +16,11 @@ UWeaponEquipmentComponent::UWeaponEquipmentComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 	WeaponSearchRange = 500.f;
 	bAddItemOnNextTick = false;
+	bUnequipOnRedundantEquip = true;
 
 	CurrentWeapon = nullptr;
 	StoreComponent = nullptr;
-	PlayerCameraManager = nullptr;
+	OwnerPC = nullptr;
 
 	TracedItem = nullptr;
 	// ...
@@ -34,10 +35,7 @@ void UWeaponEquipmentComponent::BeginPlay()
 
 	//Init
 	if (APawn* Pawn = Cast<APawn>(GetOwner()))
-	{
-		if (APlayerController* PC = Cast<APlayerController>(Pawn->Controller))
-			PlayerCameraManager = PC->PlayerCameraManager;
-	}
+		OwnerPC = Cast<APlayerController>(Pawn->Controller);
 
 	//Fill in Slots
 	for (auto& SlotSet : StoreSlotGroups)
@@ -50,10 +48,10 @@ void UWeaponEquipmentComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (PlayerCameraManager)
+	if (OwnerPC && OwnerPC->PlayerCameraManager)
 	{
-		SearchItem(PlayerCameraManager->GetCameraLocation()
-			, PlayerCameraManager->GetActorForwardVector()
+		SearchItem(OwnerPC->PlayerCameraManager->GetCameraLocation()
+			, OwnerPC->PlayerCameraManager->GetActorForwardVector()
 			, WeaponSearchRange, bAddItemOnNextTick, false);
 		bAddItemOnNextTick = false;
 	}
@@ -177,14 +175,13 @@ void UWeaponEquipmentComponent::StoreCurrentWeapon()
 
 void UWeaponEquipmentComponent::PullTrigger()
 {
-	FWeaponCoreData WeaponData;
-	if (CurrentWeapon && CurrentWeapon->GetWeaponData(WeaponData))
+	if (CurrentWeapon && CurrentWeapon->GetWeaponData(WeaponCoreDataPreFire, true))
 	{
 		bIsFiring = true;
 		
-		float TimeRate = (WeaponData.BaseData.RateOfFire > 0.f) ?
-			1.f / WeaponData.BaseData.RateOfFire : 0.f;
-		
+		float TimeRate = (WeaponCoreDataPreFire.BaseData.RateOfFire > 0.f) ?
+			1.f / WeaponCoreDataPreFire.BaseData.RateOfFire : 0.f;
+
 		GetWorld()->GetTimerManager().SetTimer(FiringTimerHandle, this
 			, &UWeaponEquipmentComponent::Fire_Internal
 			, TimeRate, true, 0.f);
@@ -203,12 +200,39 @@ void UWeaponEquipmentComponent::ReleaseTrigger()
 
 void UWeaponEquipmentComponent::Fire_Internal()
 {
+	if (OwnerPC)
+	{
+		float RecoilStrength = FMath::FRandRange(-1.f, 1.f);
+		OwnerPC->AddPitchInput(WeaponCoreDataPreFire.BaseData.VerticalRecoil * -FMath::Abs(RecoilStrength));
+		OwnerPC->AddYawInput(WeaponCoreDataPreFire.BaseData.HorizontalRecoil * RecoilStrength);
+	}
+	
+
 	UE_LOG(LogTemp, Warning, TEXT("Firing!!"));
 }
 
 void UWeaponEquipmentComponent::AddSearchedItem()
 {
 	bAddItemOnNextTick = true;
+}
+
+#include "Camera/CameraComponent.h"
+void UWeaponEquipmentComponent::FocusAim()
+{
+	if (false == bIsAimFocused && CurrentWeapon && OwnerPC)
+	{
+		bIsAimFocused = true;
+		OwnerPC->SetViewTargetWithBlend(CurrentWeapon, 0.1f);
+	}
+}
+
+void UWeaponEquipmentComponent::WideAim()
+{
+	if (true == bIsAimFocused && OwnerPC)
+	{
+		bIsAimFocused = false;
+		OwnerPC->SetViewTargetWithBlend(GetOwner(), 0.1f);
+	}
 }
 
 void UWeaponEquipmentComponent::Reload()
@@ -221,7 +245,7 @@ TSet<FName> UWeaponEquipmentComponent::GetSlotGroup(ABaseWeapon* Weapon)
 	if (Weapon)
 	{
 		FWeaponCoreData WeaponData;
-		if (Weapon->GetWeaponData(WeaponData))
+		if (Weapon->GetWeaponData(WeaponData, false))
 		{
 			if (FSlotGroup* SlotGroup = StoreSlotGroups.Find(WeaponData.SlotGroup))
 				return SlotGroup->Slots;
@@ -233,8 +257,16 @@ TSet<FName> UWeaponEquipmentComponent::GetSlotGroup(ABaseWeapon* Weapon)
 
 bool UWeaponEquipmentComponent::EquipWeapon(ABaseWeapon* Weapon)
 {
-	if (CurrentWeapon == Weapon) 
-		return false; //do not try to requip the same weapon. Meaningless.
+	if (CurrentWeapon == Weapon)
+	{
+		if (bUnequipOnRedundantEquip)
+		{
+			StoreWeapon(CurrentWeapon);
+			return true;
+
+		} else 
+			return false; //do not try to requip the same weapon. Meaningless.
+	}
 
 	if (CurrentWeapon)
 		StoreWeapon(CurrentWeapon); //store the current (i.e. weapon in hand) before equipping new
@@ -260,7 +292,7 @@ bool UWeaponEquipmentComponent::StoreWeapon(ABaseWeapon* Weapon)
 
 	//Else, we just check as if it's a new Weapon to be Stored
 	FWeaponCoreData CoreData;
-	if (Weapon->GetWeaponData(CoreData))
+	if (Weapon->GetWeaponData(CoreData, false))
 	{
 		//Check Weapons Slots available to Equip for Specific Group
 		TSet<FName> SlotsAssigned = StoreSlotGroups[CoreData.SlotGroup].Slots;
@@ -342,7 +374,7 @@ bool UWeaponEquipmentComponent::EquipAttachment(ABaseAttachment* Attachment
 	FWeaponCoreData WeaponData;
 	FWeaponAttachmentData AttachmentData;
 
-	if (TargetWeapon && TargetWeapon->GetWeaponData(WeaponData) 
+	if (TargetWeapon && TargetWeapon->GetWeaponData(WeaponData, false) 
 		&& Attachment && Attachment->GetAttachmentData(AttachmentData))
 	{
 		FName* AttachmentSlotName = WeaponData.AttachmentSlots.Find(AttachmentData.WeaponSlot);

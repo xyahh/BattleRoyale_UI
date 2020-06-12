@@ -41,5 +41,8 @@ public:
     class USkeletalMesh* WeaponMesh;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Core Info")
+    FName AimSocket;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Core Info")
     FWeaponCustomizableData BaseData; //Raw Base Data without Attachments
 };

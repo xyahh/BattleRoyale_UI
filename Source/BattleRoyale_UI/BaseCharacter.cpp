@@ -23,8 +23,9 @@ ABaseCharacter::ABaseCharacter()
 	SpringArm->bUsePawnControlRotation = true;
 	SpringArm->SetupAttachment(RootComponent);
 	SpringArm->bEnableCameraLag = true;
+	SpringArm->bEnableCameraRotationLag = true;
+	SpringArm->CameraRotationLagSpeed = 20.f;
 	SpringArm->bDoCollisionTest = false;
-	//SpringArm->bEnableCameraRotationLag = true;
 
 	Camera = CreateDefaultSubobject<UCameraComponent>("Camera");
 	Camera->SetRelativeLocation(FVector(100.F, 50.f, 50.f));
@@ -45,7 +46,6 @@ ABaseCharacter::ABaseCharacter()
 	}
 
 	WeaponEquipment = CreateDefaultSubobject<UWeaponEquipmentComponent>("Weapon Equipment");
-	WeaponEquipment->OnWeaponRecoil.AddDynamic(this, &ABaseCharacter::OnWeaponRecoil);
 	WeaponEquipment->SetupStoreComponent(GetMesh());
 }
 
@@ -74,8 +74,6 @@ void ABaseCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
 
-
-
 	//Sprint
 	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &ABaseCharacter::Sprint);
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &ABaseCharacter::StopSprinting);
@@ -88,12 +86,18 @@ void ABaseCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	PlayerInputComponent->BindAxis("Turn", this, &APawn::AddControllerYawInput);
 	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
 
+	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &ABaseCharacter::Shoot);
+	PlayerInputComponent->BindAction("Fire", IE_Released, this, &ABaseCharacter::StopShooting);
+
 	//Weapon Equipment Input
 	PlayerInputComponent->BindAction("GetWeapon", IE_Pressed, WeaponEquipment
 		, &UWeaponEquipmentComponent::AddSearchedItem);
 
-	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &ABaseCharacter::Shoot);
-	PlayerInputComponent->BindAction("Fire", IE_Released, this, &ABaseCharacter::StopShooting);
+	PlayerInputComponent->BindAction("Aim", IE_Pressed, WeaponEquipment
+		, &UWeaponEquipmentComponent::FocusAim);
+	PlayerInputComponent->BindAction("Aim", IE_Released, WeaponEquipment
+		, &UWeaponEquipmentComponent::WideAim);
+
 
 	PlayerInputComponent->BindAction("Reload", IE_Pressed, WeaponEquipment
 		, &UWeaponEquipmentComponent::Reload);
@@ -138,11 +142,5 @@ void ABaseCharacter::Sprint()
 void ABaseCharacter::StopSprinting()
 {
 	GetCharacterMovement()->MaxWalkSpeed = MaxSpeed_Walking;	
-}
-
-void ABaseCharacter::OnWeaponRecoil(float Pitch, float Yaw)
-{
-	AddControllerPitchInput(Pitch);
-	AddControllerYawInput(Yaw);
 }
 

@@ -39,10 +39,6 @@ public:
 	void Sprint();
 	void StopSprinting();
 
-	//Bound to be Called by WeaponEquipment Component when Weapon is Recoiling
-	UFUNCTION()
-	void OnWeaponRecoil(float Pitch, float Yaw);
-
 protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Core Components")
