@@ -59,7 +59,7 @@ void UWeaponEquipmentComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 
 void UWeaponEquipmentComponent::AddItem(ABaseItem* Item, bool bEquipWeapon)
 {
-	bool bItemAdded = false;
+	int32 ItemIndex = INDEX_NONE;
 
 	//Make sure that: 
 	// 1) Weapon is Valid  
@@ -71,28 +71,26 @@ void UWeaponEquipmentComponent::AddItem(ABaseItem* Item, bool bEquipWeapon)
 		if (StoreComponent && OccupiedSlots.Num() < StoreSlots.Num() 
 			&& INDEX_NONE == Weapons.Find(Weapon)) //Weapon must not be in list
 		{
-			Weapons.Add(Weapon);
+			ItemIndex = Weapons.Add(Weapon);
 			Weapon->ItemOwner = GetOwner();
 			if (StoreWeapon(Weapon) && bEquipWeapon)
 				EquipWeapon(Weapon);
-			bItemAdded = true;
 		}		
 	}
 	else if(ABaseAttachment * Attachment = Cast<ABaseAttachment>(Item))
 	{
 		if (INDEX_NONE == Attachments.Find(Attachment))
 		{
-			Attachments.Add(Attachment);
-			bItemAdded = true;
+			ItemIndex = Attachments.Add(Attachment);
 			Attachment->ItemOwner = GetOwner();
 			StoreAttachment(Attachment);
 			//should we also handle bEquipWeapon here?
 		}
 	}
 
-	if (bItemAdded)
+	if (ItemIndex != INDEX_NONE)
 	{
-		OnItemOwnershipChanged.Broadcast(Item, true);
+		OnItemOwnershipChanged.Broadcast(Item, ItemIndex, true);
 	}
 }
 
@@ -101,7 +99,7 @@ void UWeaponEquipmentComponent::GetCurrentWeapon(ABaseWeapon*& outWeapon) const
 	outWeapon = CurrentWeapon;
 }
 
-void UWeaponEquipmentComponent::SelectWeapon(int32 Index)
+void UWeaponEquipmentComponent::SelectWeaponIndex(int32 Index)
 {
 	if (Weapons.IsValidIndex(Index))
 		EquipWeapon(Weapons[Index]);
@@ -120,6 +118,12 @@ void UWeaponEquipmentComponent::SelectNextWeapon(int32 DeltaIndex)
 	{
 		SelectWeapon(0); //Default Weapon
 	}
+}
+
+void UWeaponEquipmentComponent::SelectWeapon(ABaseWeapon* Weapon)
+{
+	if (EquippedWeaponSlots.Find(Weapon))
+		EquipWeapon(Weapon);
 }
 
 void UWeaponEquipmentComponent::SearchItem(const FVector& StartingPoint, const FVector& Direction
@@ -257,7 +261,7 @@ TSet<FName> UWeaponEquipmentComponent::GetSlotGroup(ABaseWeapon* Weapon)
 
 bool UWeaponEquipmentComponent::EquipWeapon(ABaseWeapon* Weapon)
 {
-	if (CurrentWeapon == Weapon)
+	if (CurrentWeapon == Weapon) //When we are trying to equip the same weapon
 	{
 		if (bUnequipOnRedundantEquip)
 		{
@@ -268,10 +272,14 @@ bool UWeaponEquipmentComponent::EquipWeapon(ABaseWeapon* Weapon)
 			return false; //do not try to requip the same weapon. Meaningless.
 	}
 
-	if (CurrentWeapon)
+	WideAim();
+
+	if (CurrentWeapon) //When there is a Current Weapon BUT its not the one we want to equip
 		StoreWeapon(CurrentWeapon); //store the current (i.e. weapon in hand) before equipping new
 	AttachItem(Weapon, StoreComponent, WeaponEquipSocket);
+	
 	CurrentWeapon = Weapon;
+	OnWeaponSelectionChanged.Broadcast(Weapon, true);
 	return true;
 }
 
@@ -285,7 +293,9 @@ bool UWeaponEquipmentComponent::StoreWeapon(ABaseWeapon* Weapon)
 		if (CurrentWeapon == Weapon)
 		{
 			ReleaseTrigger(); //Stop Firing the Current Weapon
+			WideAim();
 			CurrentWeapon = nullptr;
+			OnWeaponSelectionChanged.Broadcast(Weapon, false);
 		}
 		return true;
 	}
@@ -316,54 +326,58 @@ bool UWeaponEquipmentComponent::StoreWeapon(ABaseWeapon* Weapon)
 
 bool UWeaponEquipmentComponent::DropItem(ABaseItem* Item)
 {
-	bool bItemRemoved = false;
+	int32 ItemIndex = INDEX_NONE;
 
 	if (ABaseWeapon* Weapon = Cast<ABaseWeapon>(Item))
 	{
 		if (FName* WeaponSlot = EquippedWeaponSlots.Find(Weapon))
 		{
-			EquippedWeaponSlots.Remove(Weapon);
-			OccupiedSlots.Remove(*WeaponSlot);
-			Weapons.Remove(Weapon);
-			
-			Weapon->ItemOwner = nullptr;
-
-			DeattachItem(Weapon);
-			if (Weapon == CurrentWeapon)
+			ItemIndex = Weapons.Find(Weapon);
+			if (INDEX_NONE != ItemIndex)
 			{
-				ReleaseTrigger();
-				CurrentWeapon = nullptr;
+				Weapons.RemoveAt(ItemIndex);
+
+				EquippedWeaponSlots.Remove(Weapon);
+				OccupiedSlots.Remove(*WeaponSlot);
+
+				Weapon->ItemOwner = nullptr;
+
+				DeattachItem(Weapon);
+				if (Weapon == CurrentWeapon)
+				{
+					ReleaseTrigger();
+					CurrentWeapon = nullptr;
+				}
 			}
-			bItemRemoved = true;
+			
 		}
 	}
 	else if (ABaseAttachment* Attachment = Cast<ABaseAttachment>(Item))
 	{
-		int32 Index = Attachments.Find(Attachment);
-		if (INDEX_NONE != Index)
+		ItemIndex = Attachments.Find(Attachment);
+		if (INDEX_NONE != ItemIndex)
 		{
 			if (ABaseWeapon* WeaponOwner = Attachment->GetWeaponOwner())
 				WeaponOwner->UninstallAttachment(Attachment);
 
-			Attachments.RemoveAt(Index);
+			Attachments.RemoveAt(ItemIndex);
 
 			Attachment->ItemOwner = nullptr;
 			Attachment->SetWeaponOwner(nullptr);
 			Attachment->SetActorHiddenInGame(false);
 			Attachment->SetWeaponOwner(nullptr);
 			DeattachItem(Attachment);
-			bItemRemoved = true;
 		}
 
 		
 	}
 
-	if (bItemRemoved)
+	if (ItemIndex != INDEX_NONE)
 	{
-		OnItemOwnershipChanged.Broadcast(Item, false);
+		OnItemOwnershipChanged.Broadcast(Item, ItemIndex, false);
 	}
 
-	return bItemRemoved;
+	return ItemIndex != INDEX_NONE;
 }
 
 

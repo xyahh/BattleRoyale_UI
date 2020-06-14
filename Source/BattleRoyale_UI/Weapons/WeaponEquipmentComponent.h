@@ -9,7 +9,8 @@
 #include "WeaponEquipmentComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FWeaponRecoilDelegate, float, Pitch, float, Yaw);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FItemOwnershipChanged, ABaseItem*, Item, bool, bItemAdded);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FItemOwnershipChanged, ABaseItem*, Item, int32, ItemIndex, bool, bItemAdded);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FWeaponSelectionChanged, ABaseWeapon*, Weapon, bool, bSelected);
 
 class APlayerCameraManager;
 
@@ -67,11 +68,16 @@ public:
 
 	/* Selects the Weapon at the Given Index, if it's Valid. */
 	UFUNCTION(BlueprintCallable, Category = "Weapons")
-	void SelectWeapon(int32 Index);
+	void SelectWeaponIndex(int32 Index);
 
 	/* Selects the Next Weapon, [DeltaIndex] ahead of the currently Selected Index */
 	UFUNCTION(BlueprintCallable, Category = "Weapons")
 	void SelectNextWeapon(int32 DeltaIndex);
+
+	/* Selects the given Weapon, if in Inventory..*/
+	UFUNCTION(BlueprintCallable, Category = "Weapons")
+	void SelectWeapon(ABaseWeapon* Weapon);
+
 
 	/*
 	 * Does a line trace (Visibility) for Weapons.
@@ -109,13 +115,15 @@ public:
 
 	TSet<FName> GetSlotGroup(ABaseWeapon* Weapon);
 
+	UFUNCTION(BlueprintCallable, Category = "Weapons")
+	bool EquipAttachment(ABaseAttachment* Attachment
+		, ABaseWeapon* TargetWeapon, bool bOverrideCurrentAttachment);
 
 protected:
 
 	bool EquipWeapon(ABaseWeapon* Weapon);
 	bool StoreWeapon(ABaseWeapon* Weapon);
 
-	bool EquipAttachment(ABaseAttachment* Attachment, ABaseWeapon* TargetWeapon, bool bOverrideCurrentAttachment);
 	bool StoreAttachment(ABaseAttachment* Attachment);
 
 	void AttachItem(ABaseItem* Item, USceneComponent* Target, const FName& SocketName);
@@ -125,6 +133,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Items")
 	FItemOwnershipChanged OnItemOwnershipChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Weapons")
+	FWeaponSelectionChanged OnWeaponSelectionChanged;
 
 	FTimerHandle FiringTimerHandle;
 
